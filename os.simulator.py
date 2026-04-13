@@ -70,7 +70,6 @@ def fcfs(procs):
     return res, gantt
 
 
-
 def sjf_non_preemptive(procs):
     procs = sorted(procs, key=lambda x: (x["arrival"], x["pid"]))
     t = 0
@@ -100,7 +99,6 @@ def sjf_non_preemptive(procs):
         gantt.append((p["pid"], start, end))
 
     return done, gantt
-
 
 
 def sjf_preemptive(procs):
@@ -148,7 +146,6 @@ def sjf_preemptive(procs):
         res.append([p["pid"], p["arrival"], p["burst"], wt, tat])
 
     return res, gantt
-
 
 
 def round_robin(procs, q):
@@ -203,16 +200,13 @@ def round_robin(procs, q):
 def first_fit(blocks, processes):
     working = blocks.copy()
     alloc = [-1] * len(processes)
-    remaining = working.copy()
     for i in range(len(processes)):
         for j in range(len(working)):
             if working[j] >= processes[i]:
                 alloc[i] = j
                 working[j] -= processes[i]
                 break
-    remaining = working
-    return alloc, remaining
-
+    return alloc, working
 
 
 def best_fit(blocks, processes):
@@ -230,7 +224,6 @@ def best_fit(blocks, processes):
     return alloc, working
 
 
-
 def worst_fit(blocks, processes):
     working = blocks.copy()
     alloc = [-1] * len(processes)
@@ -244,7 +237,6 @@ def worst_fit(blocks, processes):
             alloc[i] = worst
             working[worst] -= processes[i]
     return alloc, working
-
 
 
 def memory_result_table(blocks, processes, alloc, remaining):
@@ -270,7 +262,6 @@ def page_stats(faults, total_refs):
     return hits, hit_ratio, miss_ratio
 
 
-
 def fifo(refs, frame_count):
     frames = []
     faults = 0
@@ -291,7 +282,6 @@ def fifo(refs, frame_count):
     }
 
 
-
 def optimal(refs, frame_count):
     frames = []
     faults = 0
@@ -302,7 +292,7 @@ def optimal(refs, frame_count):
             if len(frames) < frame_count:
                 frames.append(r)
             else:
-                future = refs[i + 1 :]
+                future = refs[i + 1:]
                 idx = max(
                     range(len(frames)),
                     key=lambda j: future.index(frames[j]) if frames[j] in future else 999999,
@@ -313,7 +303,6 @@ def optimal(refs, frame_count):
         "faults": faults,
         "final_frames": frames.copy(),
     }
-
 
 
 def lru(refs, frame_count):
@@ -459,8 +448,8 @@ def cpu_page():
                 )
                 + "\n",
             )
-            out.insert("end", f"\nAverage Waiting Time: {avg_wait:.2f}\n")
-            out.insert("end", f"Average Turnaround Time: {avg_tat:.2f}\n")
+            out.insert("end", f"\nAverage Waiting Time (ms): {avg_wait:.2f}\n")
+            out.insert("end", f"Average Turnaround Time (ms): {avg_tat:.2f}\n")
             out.insert("end", "\nGantt Chart:\n")
             out.insert("end", gantt_chart(gantt) + "\n")
 
@@ -478,6 +467,7 @@ def memory_page():
     tk.Label(root, text="Contiguous Memory Allocation", font=("Arial", 22)).pack(pady=10)
 
     tk.Label(root, text="Memory Block Sizes (KB, space-separated):").pack()
+
     block_entry = ttk.Entry(root, width=60)
     block_entry.insert(0, "100 500 200")
     block_entry.pack(pady=4)
@@ -487,6 +477,13 @@ def memory_page():
     proc_entry.insert(0, "212 417 112")
     proc_entry.pack(pady=4)
 
+    algo_var = tk.StringVar(value="First Fit")
+
+    tk.Label(root, text="Allocation Strategy:").pack(pady=(8, 0))
+    tk.Radiobutton(root, text="First Fit", variable=algo_var, value="First Fit").pack()
+    tk.Radiobutton(root, text="Best Fit", variable=algo_var, value="Best Fit").pack()
+    tk.Radiobutton(root, text="Worst Fit", variable=algo_var, value="Worst Fit").pack()
+
     out = scrolledtext.ScrolledText(root, height=24, width=120)
     out.pack(padx=10, pady=10, fill="both", expand=True)
 
@@ -494,6 +491,7 @@ def memory_page():
         try:
             blocks = list(map(int, block_entry.get().split()))
             procs = list(map(int, proc_entry.get().split()))
+            algorithm = algo_var.get()
         except Exception:
             messagebox.showerror("Error", "Please enter numbers only.")
             return
@@ -505,19 +503,16 @@ def memory_page():
             messagebox.showerror("Error", "All block and process sizes must be greater than 0.")
             return
 
-        ff_alloc, ff_remaining = first_fit(blocks, procs)
-        bf_alloc, bf_remaining = best_fit(blocks, procs)
-        wf_alloc, wf_remaining = worst_fit(blocks, procs)
+        if algorithm == "First Fit":
+            alloc, remaining = first_fit(blocks, procs)
+        elif algorithm == "Best Fit":
+            alloc, remaining = best_fit(blocks, procs)
+        else:
+            alloc, remaining = worst_fit(blocks, procs)
 
         out.delete("1.0", "end")
-        out.insert("end", "--- First Fit ---\n")
-        out.insert("end", memory_result_table(blocks, procs, ff_alloc, ff_remaining) + "\n\n")
-
-        out.insert("end", "--- Best Fit ---\n")
-        out.insert("end", memory_result_table(blocks, procs, bf_alloc, bf_remaining) + "\n\n")
-
-        out.insert("end", "--- Worst Fit ---\n")
-        out.insert("end", memory_result_table(blocks, procs, wf_alloc, wf_remaining) + "\n")
+        out.insert("end", f"--- {algorithm} ---\n")
+        out.insert("end", memory_result_table(blocks, procs, alloc, remaining) + "\n")
 
     button_frame = tk.Frame(root)
     button_frame.pack(pady=5)
@@ -568,7 +563,7 @@ def page_page():
         }
 
         out.delete("1.0", "end")
-        out.insert("end", f"Frames: {f}\n")
+        out.insert("end", f"Number of Frames: {f}\n")
         out.insert("end", f"Reference String: {' '.join(map(str, refs))}\n\n")
 
         for algo_name, result in results.items():
@@ -577,8 +572,8 @@ def page_page():
             final_frames = result["final_frames"]
 
             out.insert("end", f"--- {algo_name} ---\n")
-            out.insert("end", f"Page Faults: {faults}\n")
-            out.insert("end", f"Hits: {hits}\n")
+            out.insert("end", f"Number of Page Faults: {faults}\n")
+            out.insert("end", f"Number of Hits: {hits}\n")
             out.insert("end", f"Hit Ratio: {hit_ratio:.2f}\n")
             out.insert("end", f"Miss Ratio: {miss_ratio:.2f}\n")
             out.insert(
