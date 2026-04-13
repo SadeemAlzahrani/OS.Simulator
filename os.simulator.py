@@ -248,16 +248,16 @@ def worst_fit(blocks, processes):
 
 
 def memory_result_table(blocks, processes, alloc, remaining):
-    headers = ["Process", "Process Size", "Allocated Block", "Status"]
+    headers = ["Process", "Process Size (KB)", "Allocated Block", "Status"]
     rows = []
     for i, size in enumerate(processes):
         if alloc[i] == -1:
-            rows.append([f"P{i+1}", size, "-", "Not Allocated"])
+            rows.append([f"P{i+1}", f"{size} KB", "-", "Not Allocated"])
         else:
-            rows.append([f"P{i+1}", size, f"Block {alloc[i]+1}", "Allocated"])
+            rows.append([f"P{i+1}", f"{size} KB", f"Block {alloc[i]+1}", "Allocated"])
 
     footer = "Remaining Block Sizes: " + ", ".join(
-        f"Block {i+1} = {remaining[i]}" for i in range(len(remaining))
+        f"Block {i+1} = {remaining[i]} KB" for i in range(len(remaining))
     )
     return format_table(headers, rows) + "\n\n" + footer
 
@@ -361,7 +361,7 @@ def cpu_page():
     num_entry.insert(0, "3")
     num_entry.grid(row=0, column=1, padx=5, pady=5)
 
-    tk.Label(top_frame, text="Quantum (RR):").grid(row=0, column=2, padx=5, pady=5)
+    tk.Label(top_frame, text="Time Quantum (ms):").grid(row=0, column=2, padx=5, pady=5)
     q_entry = ttk.Entry(top_frame, width=10)
     q_entry.insert(0, "2")
     q_entry.grid(row=0, column=3, padx=5, pady=5)
@@ -383,7 +383,7 @@ def cpu_page():
             messagebox.showerror("Invalid Input", "Number of Processes must be greater than 0.")
             return
 
-        headers = ["PID", "Arrival Time", "Burst Time"]
+        headers = ["PID", "Arrival Time (ms)", "Burst Time (ms)"]
         for c, h in enumerate(headers):
             tk.Label(entries_frame, text=h, font=("Arial", 10, "bold")).grid(
                 row=0, column=c, padx=10, pady=5
@@ -454,7 +454,7 @@ def cpu_page():
             out.insert(
                 "end",
                 format_table(
-                    ["PID", "Arrival", "Burst", "Waiting", "Turnaround"],
+                    ["PID", "Arrival (ms)", "Burst (ms)", "Waiting Time (ms)", "Turnaround Time (ms)"],
                     res,
                 )
                 + "\n",
@@ -477,12 +477,12 @@ def memory_page():
     clear()
     tk.Label(root, text="Contiguous Memory Allocation", font=("Arial", 22)).pack(pady=10)
 
-    tk.Label(root, text="Memory Blocks (space-separated):").pack()
+    tk.Label(root, text="Memory Block Sizes (KB, space-separated):").pack()
     block_entry = ttk.Entry(root, width=60)
     block_entry.insert(0, "100 500 200")
     block_entry.pack(pady=4)
 
-    tk.Label(root, text="Process Sizes (space-separated):").pack()
+    tk.Label(root, text="Process Memory Requests (KB, space-separated):").pack()
     proc_entry = ttk.Entry(root, width=60)
     proc_entry.insert(0, "212 417 112")
     proc_entry.pack(pady=4)
@@ -583,7 +583,7 @@ def page_page():
             out.insert("end", f"Miss Ratio: {miss_ratio:.2f}\n")
             out.insert(
                 "end",
-                "Pages currently in frames: "
+                "Final Frame State: "
                 + (" ".join(map(str, final_frames)) if final_frames else "None")
                 + "\n\n",
             )
