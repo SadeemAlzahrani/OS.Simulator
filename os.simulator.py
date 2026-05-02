@@ -270,70 +270,125 @@ def page_stats(faults, total_refs):
     return hits, hit_ratio, miss_ratio
 
 
+# This table shows the frames after each page reference
+# and whether the result was a Hit or Page Fault.
+def format_page_steps_table(steps, frame_count):
+    headers = ["Step", "Reference"] + [f"Frame {i+1}" for i in range(frame_count)] + ["Result"]
+    rows = []
+
+    for step in steps:
+        frame_values = step["frames"] + ["-"] * (frame_count - len(step["frames"]))
+        rows.append([
+            step["step"],
+            step["reference"],
+            *frame_values,
+            step["result"],
+        ])
+
+    return format_table(headers, rows)
+
 
 def fifo(refs, frame_count):
     frames = []
     faults = 0
     idx = 0
+    steps = []
 
-    for r in refs:
-        if r not in frames:
+    for step_no, r in enumerate(refs, start=1):
+        if r in frames:
+            result = "Hit"
+        else:
+            result = "Page Fault"
             faults += 1
+
             if len(frames) < frame_count:
                 frames.append(r)
             else:
                 frames[idx] = r
                 idx = (idx + 1) % frame_count
 
+        steps.append({
+            "step": step_no,
+            "reference": r,
+            "frames": frames.copy(),
+            "result": result,
+        })
+
     return {
         "faults": faults,
         "final_frames": frames.copy(),
+        "steps": steps,
     }
-
 
 
 def optimal(refs, frame_count):
     frames = []
     faults = 0
+    steps = []
 
     for i, r in enumerate(refs):
-        if r not in frames:
+        if r in frames:
+            result = "Hit"
+        else:
+            result = "Page Fault"
             faults += 1
+
             if len(frames) < frame_count:
                 frames.append(r)
             else:
-                future = refs[i + 1 :]
+                future = refs[i + 1:]
                 idx = max(
                     range(len(frames)),
                     key=lambda j: future.index(frames[j]) if frames[j] in future else 999999,
                 )
                 frames[idx] = r
 
+        steps.append({
+            "step": i + 1,
+            "reference": r,
+            "frames": frames.copy(),
+            "result": result,
+        })
+
     return {
         "faults": faults,
         "final_frames": frames.copy(),
+        "steps": steps,
     }
-
 
 
 def lru(refs, frame_count):
     frames = []
     recent = {}
     faults = 0
+    steps = []
 
     for i, r in enumerate(refs):
-        if r not in frames:
+        if r in frames:
+            result = "Hit"
+        else:
+            result = "Page Fault"
             faults += 1
+
             if len(frames) < frame_count:
                 frames.append(r)
             else:
                 lru_page = min(frames, key=lambda x: recent.get(x, -1))
                 frames[frames.index(lru_page)] = r
+
         recent[r] = i
+
+        steps.append({
+            "step": i + 1,
+            "reference": r,
+            "frames": frames.copy(),
+            "result": result,
+        })
 
     return {
         "faults": faults,
         "final_frames": frames.copy(),
+        "steps": steps,
     }
 
 
@@ -577,6 +632,11 @@ def page_page():
             final_frames = result["final_frames"]
 
             out.insert("end", f"--- {algo_name} ---\n")
+
+            out.insert("end", "Step-by-Step Table:\n")
+            out.insert("end", format_page_steps_table(result["steps"], f) + "\n\n")
+
+            out.insert("end", f"Total Page References: {len(refs)}\n")
             out.insert("end", f"Page Faults: {faults}\n")
             out.insert("end", f"Hits: {hits}\n")
             out.insert("end", f"Hit Ratio: {hit_ratio:.2f}\n")
