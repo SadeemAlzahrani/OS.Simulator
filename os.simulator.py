@@ -43,14 +43,27 @@ def safe_float_list(value):
         return None
 
 
-def show_output_error(out, field_name):
+def safe_int_list(value):
+    try:
+        parts = normalize_number_text(value).split()
+        nums = []
+        for x in parts:
+            if "." in x:
+                return None
+            nums.append(int(x))
+        return nums
+    except Exception:
+        return None
+
+
+def show_output_error(out, field_name, example="2 or 5.7"):
     out.delete("1.0", "end")
     out.insert(
         "end",
         f"Invalid Input\n\n"
         f"You entered a letter or invalid value in {field_name}.\n"
         f"Please try again using numbers only.\n\n"
-        f"Example: 2 or 5.7"
+        f"Example: {example}"
     )
 
 
@@ -65,6 +78,10 @@ def format_number(num):
     if isinstance(num, float):
         return round(num, 4)
     return num
+
+
+def with_unit(value, unit):
+    return f"{format_number(value)} {unit}"
 
 
 # ---------------- TABLE + GANTT ----------------
@@ -87,7 +104,7 @@ def format_table(headers, rows):
     return "\n".join([line, sep] + rows_str)
 
 
-def gantt_chart(gantt):
+def gantt_chart(gantt, unit="ms"):
     if not gantt:
         return "No execution"
 
@@ -97,9 +114,9 @@ def gantt_chart(gantt):
     for pid, s, e in gantt:
         block = f"| {pid} "
         line += block
-        time_line += f"{format_number(s)}".ljust(len(block))
+        time_line += f"{format_number(s)} {unit}".ljust(len(block) + 3)
 
-    time_line += str(format_number(gantt[-1][2]))
+    time_line += f"{format_number(gantt[-1][2])} {unit}"
     line += "|"
 
     return line + "\n" + time_line
@@ -349,18 +366,18 @@ def worst_fit(blocks, processes):
     return alloc, working
 
 
-def memory_result_table(blocks, processes, alloc, remaining):
-    headers = ["Process", "Process Size (KB)", "Allocated Block", "Status"]
+def memory_result_table(blocks, processes, alloc, remaining, unit):
+    headers = ["Process", f"Process Size ({unit})", "Allocated Block", "Status"]
     rows = []
 
     for i, size in enumerate(processes):
         if alloc[i] == -1:
-            rows.append([f"P{i+1}", f"{format_number(size)} KB", "-", "Not Allocated"])
+            rows.append([f"P{i+1}", with_unit(size, unit), "-", "Not Allocated"])
         else:
-            rows.append([f"P{i+1}", f"{format_number(size)} KB", f"Block {alloc[i]+1}", "Allocated"])
+            rows.append([f"P{i+1}", with_unit(size, unit), f"Block {alloc[i]+1}", "Allocated"])
 
-    footer = "Remaining Block Sizes: " + ", ".join(
-        f"Block {i+1} = {format_number(remaining[i])} KB"
+    footer = f"Remaining Block Sizes ({unit}): " + ", ".join(
+        f"Block {i+1} = {with_unit(remaining[i], unit)}"
         for i in range(len(remaining))
     )
 
@@ -376,7 +393,7 @@ def page_stats(faults, total_refs):
 
 
 def format_page_steps_table(steps, frame_count):
-    headers = ["Step", "Reference"] + [f"Frame {i+1}" for i in range(frame_count)] + ["Result"]
+    headers = ["Step", "Page Reference", *[f"Frame {i+1}" for i in range(frame_count)], "Result"]
     rows = []
 
     for step in steps:
@@ -418,11 +435,7 @@ def fifo(refs, frame_count):
             "result": result,
         })
 
-    return {
-        "faults": faults,
-        "final_frames": frames.copy(),
-        "steps": steps,
-    }
+    return {"faults": faults, "final_frames": frames.copy(), "steps": steps}
 
 
 def optimal(refs, frame_count):
@@ -456,11 +469,7 @@ def optimal(refs, frame_count):
             "result": result,
         })
 
-    return {
-        "faults": faults,
-        "final_frames": frames.copy(),
-        "steps": steps,
-    }
+    return {"faults": faults, "final_frames": frames.copy(), "steps": steps}
 
 
 def lru(refs, frame_count):
@@ -491,11 +500,7 @@ def lru(refs, frame_count):
             "result": result,
         })
 
-    return {
-        "faults": faults,
-        "final_frames": frames.copy(),
-        "steps": steps,
-    }
+    return {"faults": faults, "final_frames": frames.copy(), "steps": steps}
 
 
 # ---------------- GUI ----------------
@@ -514,6 +519,12 @@ def cpu_page():
     clear()
 
     tk.Label(root, text="CPU Scheduling", font=("Arial", 22)).pack(pady=10)
+
+    tk.Label(
+        root,
+        text="Time unit used in this page: milliseconds (ms)",
+        font=("Arial", 10, "italic")
+    ).pack()
 
     top_frame = tk.Frame(root)
     top_frame.pack(pady=5)
@@ -590,7 +601,6 @@ def cpu_page():
 
         if not entries:
             build_process_inputs()
-
             if not entries:
                 return
 
@@ -601,34 +611,30 @@ def cpu_page():
             burst = safe_float(b.get())
 
             if arr is None:
-                show_output_error(out, "Arrival Time")
+                show_output_error(out, "Arrival Time (ms)", "0 or 2.5")
                 return
 
             if burst is None:
-                show_output_error(out, "Burst Time")
+                show_output_error(out, "Burst Time (ms)", "1 or 5.7")
                 return
 
             if arr < 0 or burst <= 0:
                 show_custom_error(
                     out,
-                    "Arrival time must be 0 or more, and burst time must be greater than 0."
+                    "Arrival Time must be 0 ms or more, and Burst Time must be greater than 0 ms."
                 )
                 return
 
-            procs.append({
-                "pid": pid_val,
-                "arrival": arr,
-                "burst": burst
-            })
+            procs.append({"pid": pid_val, "arrival": arr, "burst": burst})
 
         q = safe_float(q_entry.get())
 
         if q is None:
-            show_output_error(out, "Time Quantum")
+            show_output_error(out, "Time Quantum (ms)", "2 or 4.5")
             return
 
         if q <= 0:
-            show_custom_error(out, "Time Quantum must be greater than 0.")
+            show_custom_error(out, "Time Quantum must be greater than 0 ms.")
             return
 
         algos = [
@@ -639,6 +645,9 @@ def cpu_page():
         ]
 
         out.delete("1.0", "end")
+        out.insert("end", "CPU Scheduling Results\n")
+        out.insert("end", "Time Unit: milliseconds (ms)\n")
+        out.insert("end", f"Time Quantum: {with_unit(q, 'ms')}\n\n")
 
         for name, func in algos:
             res, gantt = func([dict(p) for p in procs])
@@ -646,25 +655,35 @@ def cpu_page():
 
             out.insert("end", f"\n--- {name} ---\n")
 
+            formatted_rows = []
+            for row in res:
+                formatted_rows.append([
+                    row[0],
+                    with_unit(row[1], "ms"),
+                    with_unit(row[2], "ms"),
+                    with_unit(row[3], "ms"),
+                    with_unit(row[4], "ms"),
+                ])
+
             out.insert(
                 "end",
                 format_table(
                     [
                         "PID",
-                        "Arrival (ms)",
-                        "Burst (ms)",
-                        "Waiting Time (ms)",
-                        "Turnaround Time (ms)"
+                        "Arrival Time",
+                        "Burst Time",
+                        "Waiting Time",
+                        "Turnaround Time"
                     ],
-                    [[format_number(v) for v in row] for row in res],
+                    formatted_rows,
                 )
                 + "\n",
             )
 
-            out.insert("end", f"\nAverage Waiting Time: {avg_wait:.2f}\n")
-            out.insert("end", f"Average Turnaround Time: {avg_tat:.2f}\n")
-            out.insert("end", "\nGantt Chart:\n")
-            out.insert("end", gantt_chart(gantt) + "\n")
+            out.insert("end", f"\nAverage Waiting Time: {avg_wait:.2f} ms\n")
+            out.insert("end", f"Average Turnaround Time: {avg_tat:.2f} ms\n")
+            out.insert("end", "\nGantt Chart Time Unit: ms\n")
+            out.insert("end", gantt_chart(gantt, "ms") + "\n")
 
     build_process_inputs()
 
@@ -681,13 +700,28 @@ def memory_page():
 
     tk.Label(root, text="Contiguous Memory Allocation", font=("Arial", 22)).pack(pady=10)
 
-    tk.Label(root, text="Memory Block Sizes (KB, space-separated):").pack()
+    unit_frame = tk.Frame(root)
+    unit_frame.pack(pady=5)
+
+    tk.Label(unit_frame, text="Memory Size Unit:").pack(side="left", padx=5)
+
+    unit_var = tk.StringVar(value="KB")
+    unit_box = ttk.Combobox(
+        unit_frame,
+        textvariable=unit_var,
+        values=["Bytes", "KB", "MB", "GB"],
+        width=8,
+        state="readonly"
+    )
+    unit_box.pack(side="left", padx=5)
+
+    tk.Label(root, text="Memory Block Sizes (space-separated, using selected unit):").pack()
 
     block_entry = ttk.Entry(root, width=60)
     block_entry.insert(0, "100 500 200.5")
     block_entry.pack(pady=4)
 
-    tk.Label(root, text="Process Memory Requests (KB, space-separated):").pack()
+    tk.Label(root, text="Process Memory Requests (space-separated, using selected unit):").pack()
 
     proc_entry = ttk.Entry(root, width=60)
     proc_entry.insert(0, "212 417.5 112")
@@ -697,23 +731,25 @@ def memory_page():
     out.pack(padx=10, pady=10, fill="both", expand=True)
 
     def run():
+        unit = unit_var.get()
+
         blocks = safe_float_list(block_entry.get())
         procs = safe_float_list(proc_entry.get())
 
         if blocks is None:
-            show_output_error(out, "Memory Block Sizes")
+            show_output_error(out, f"Memory Block Sizes ({unit})", f"100 500 200.5 {unit}")
             return
 
         if procs is None:
-            show_output_error(out, "Process Memory Requests")
+            show_output_error(out, f"Process Memory Requests ({unit})", f"212 417.5 112 {unit}")
             return
 
         if not blocks or not procs:
-            show_custom_error(out, "Please enter at least one block and one process.")
+            show_custom_error(out, "Please enter at least one memory block and one process memory request.")
             return
 
         if any(b <= 0 for b in blocks) or any(p <= 0 for p in procs):
-            show_custom_error(out, "All block and process sizes must be greater than 0.")
+            show_custom_error(out, f"All block sizes and process memory requests must be greater than 0 {unit}.")
             return
 
         ff_alloc, ff_remaining = first_fit(blocks, procs)
@@ -722,14 +758,19 @@ def memory_page():
 
         out.delete("1.0", "end")
 
+        out.insert("end", "Contiguous Memory Allocation Results\n")
+        out.insert("end", f"Memory Unit: {unit}\n")
+        out.insert("end", f"Memory Blocks: {', '.join(with_unit(x, unit) for x in blocks)}\n")
+        out.insert("end", f"Process Requests: {', '.join(with_unit(x, unit) for x in procs)}\n\n")
+
         out.insert("end", "--- First Fit ---\n")
-        out.insert("end", memory_result_table(blocks, procs, ff_alloc, ff_remaining) + "\n\n")
+        out.insert("end", memory_result_table(blocks, procs, ff_alloc, ff_remaining, unit) + "\n\n")
 
         out.insert("end", "--- Best Fit ---\n")
-        out.insert("end", memory_result_table(blocks, procs, bf_alloc, bf_remaining) + "\n\n")
+        out.insert("end", memory_result_table(blocks, procs, bf_alloc, bf_remaining, unit) + "\n\n")
 
         out.insert("end", "--- Worst Fit ---\n")
-        out.insert("end", memory_result_table(blocks, procs, wf_alloc, wf_remaining) + "\n")
+        out.insert("end", memory_result_table(blocks, procs, wf_alloc, wf_remaining, unit) + "\n")
 
     button_frame = tk.Frame(root)
     button_frame.pack(pady=5)
@@ -744,13 +785,19 @@ def page_page():
 
     tk.Label(root, text="Page Replacement", font=("Arial", 22)).pack(pady=10)
 
-    tk.Label(root, text="Number of Frames:").pack()
+    tk.Label(
+        root,
+        text="Reference string values are page numbers. Frames are counted as frame slots, not time or memory units.",
+        font=("Arial", 10, "italic")
+    ).pack()
+
+    tk.Label(root, text="Number of Frames (frame slots):").pack()
 
     f_entry = ttk.Entry(root, width=20)
     f_entry.insert(0, "3")
     f_entry.pack(pady=4)
 
-    tk.Label(root, text="Reference String (space-separated):").pack()
+    tk.Label(root, text="Reference String (page numbers, space-separated):").pack()
 
     ref_entry = ttk.Entry(root, width=60)
     ref_entry.insert(0, "7 0 1 2 0 3")
@@ -765,22 +812,26 @@ def page_page():
         if f is None:
             show_custom_error(
                 out,
-                "Number of Frames must be a whole number only.\nExample: 3"
+                "Number of Frames must be a whole number only.\nExample: 3 frames"
             )
             return
 
         if f <= 0:
-            show_custom_error(out, "Number of Frames must be greater than 0.")
+            show_custom_error(out, "Number of Frames must be greater than 0 frames.")
             return
 
-        refs = safe_float_list(ref_entry.get())
+        refs = safe_int_list(ref_entry.get())
 
         if refs is None:
-            show_output_error(out, "Reference String")
+            show_output_error(out, "Reference String (page numbers)", "7 0 1 2 0 3")
             return
 
         if not refs:
             show_custom_error(out, "Reference string cannot be empty.")
+            return
+
+        if any(r < 0 for r in refs):
+            show_custom_error(out, "Page numbers in the reference string must be 0 or greater.")
             return
 
         results = {
@@ -790,8 +841,10 @@ def page_page():
         }
 
         out.delete("1.0", "end")
-        out.insert("end", f"Frames: {f}\n")
-        out.insert("end", f"Reference String: {' '.join(str(format_number(x)) for x in refs)}\n\n")
+        out.insert("end", "Page Replacement Results\n")
+        out.insert("end", "Unit Note: references are page numbers; frames are frame slots.\n")
+        out.insert("end", f"Number of Frames: {f} frame(s)\n")
+        out.insert("end", f"Reference String: {' '.join(str(format_number(x)) for x in refs)} page references\n\n")
 
         for algo_name, result in results.items():
             faults = result["faults"]
@@ -802,16 +855,16 @@ def page_page():
             out.insert("end", "Step-by-Step Table:\n")
             out.insert("end", format_page_steps_table(result["steps"], f) + "\n\n")
 
-            out.insert("end", f"Total Page References: {len(refs)}\n")
-            out.insert("end", f"Page Faults: {faults}\n")
-            out.insert("end", f"Hits: {hits}\n")
+            out.insert("end", f"Total Page References: {len(refs)} reference(s)\n")
+            out.insert("end", f"Page Faults: {faults} fault(s)\n")
+            out.insert("end", f"Hits: {hits} hit(s)\n")
             out.insert("end", f"Hit Ratio: {hit_ratio:.2f}\n")
             out.insert("end", f"Miss Ratio: {miss_ratio:.2f}\n")
             out.insert(
                 "end",
                 "Final Frame State: "
                 + (" ".join(str(format_number(x)) for x in final_frames) if final_frames else "None")
-                + "\n\n",
+                + " page number(s)\n\n",
             )
 
     button_frame = tk.Frame(root)
