@@ -104,7 +104,7 @@ def format_table(headers, rows):
     return "\n".join([line, sep] + rows_str)
 
 
-def gantt_chart(gantt, unit="ms"):
+def gantt_chart(gantt):
     if not gantt:
         return "No execution"
 
@@ -114,9 +114,9 @@ def gantt_chart(gantt, unit="ms"):
     for pid, s, e in gantt:
         block = f"| {pid} "
         line += block
-        time_line += f"{format_number(s)} {unit}".ljust(len(block) + 3)
+        time_line += f"{format_number(s)}".ljust(len(block) + 3)
 
-    time_line += f"{format_number(gantt[-1][2])} {unit}"
+    time_line += f"{format_number(gantt[-1][2])}"
     line += "|"
 
     return line + "\n" + time_line
@@ -315,55 +315,61 @@ def round_robin(procs, q):
 
 # ---------------- MEMORY ----------------
 def first_fit(blocks, processes):
-    working = blocks.copy()
+    used = [False] * len(blocks)
     alloc = [-1] * len(processes)
+    remaining = blocks.copy()
 
     for i in range(len(processes)):
-        for j in range(len(working)):
-            if working[j] >= processes[i]:
+        for j in range(len(blocks)):
+            if not used[j] and blocks[j] >= processes[i]:
                 alloc[i] = j
-                working[j] -= processes[i]
+                used[j] = True
+                remaining[j] = blocks[j] - processes[i]
                 break
 
-    return alloc, working
+    return alloc, remaining
 
 
 def best_fit(blocks, processes):
-    working = blocks.copy()
+    used = [False] * len(blocks)
     alloc = [-1] * len(processes)
+    remaining = blocks.copy()
 
     for i in range(len(processes)):
         best = -1
 
-        for j in range(len(working)):
-            if working[j] >= processes[i]:
-                if best == -1 or working[j] < working[best]:
+        for j in range(len(blocks)):
+            if not used[j] and blocks[j] >= processes[i]:
+                if best == -1 or blocks[j] < blocks[best]:
                     best = j
 
         if best != -1:
             alloc[i] = best
-            working[best] -= processes[i]
+            used[best] = True
+            remaining[best] = blocks[best] - processes[i]
 
-    return alloc, working
+    return alloc, remaining
 
 
 def worst_fit(blocks, processes):
-    working = blocks.copy()
+    used = [False] * len(blocks)
     alloc = [-1] * len(processes)
+    remaining = blocks.copy()
 
     for i in range(len(processes)):
         worst = -1
 
-        for j in range(len(working)):
-            if working[j] >= processes[i]:
-                if worst == -1 or working[j] > working[worst]:
+        for j in range(len(blocks)):
+            if not used[j] and blocks[j] >= processes[i]:
+                if worst == -1 or blocks[j] > blocks[worst]:
                     worst = j
 
         if worst != -1:
             alloc[i] = worst
-            working[worst] -= processes[i]
+            used[worst] = True
+            remaining[worst] = blocks[worst] - processes[i]
 
-    return alloc, working
+    return alloc, remaining
 
 
 def memory_result_table(blocks, processes, alloc, remaining, unit):
@@ -372,12 +378,12 @@ def memory_result_table(blocks, processes, alloc, remaining, unit):
 
     for i, size in enumerate(processes):
         if alloc[i] == -1:
-            rows.append([f"P{i+1}", with_unit(size, unit), "-", "Not Allocated"])
+            rows.append([f"P{i+1}", format_number(size), "-", "Not Allocated"])
         else:
-            rows.append([f"P{i+1}", with_unit(size, unit), f"Block {alloc[i]+1}", "Allocated"])
+            rows.append([f"P{i+1}", format_number(size), f"Block {alloc[i]+1}", "Allocated"])
 
     footer = f"Remaining Block Sizes ({unit}): " + ", ".join(
-        f"Block {i+1} = {with_unit(remaining[i], unit)}"
+        f"Block {i+1} = {format_number(remaining[i])}"
         for i in range(len(remaining))
     )
 
@@ -659,10 +665,10 @@ def cpu_page():
             for row in res:
                 formatted_rows.append([
                     row[0],
-                    with_unit(row[1], "ms"),
-                    with_unit(row[2], "ms"),
-                    with_unit(row[3], "ms"),
-                    with_unit(row[4], "ms"),
+                    format_number(row[1]),
+                    format_number(row[2]),
+                    format_number(row[3]),
+                    format_number(row[4]),
                 ])
 
             out.insert(
@@ -670,10 +676,10 @@ def cpu_page():
                 format_table(
                     [
                         "PID",
-                        "Arrival Time",
-                        "Burst Time",
-                        "Waiting Time",
-                        "Turnaround Time"
+                        "Arrival Time (ms)",
+                        "Burst Time (ms)",
+                        "Waiting Time (ms)",
+                        "Turnaround Time (ms)"
                     ],
                     formatted_rows,
                 )
@@ -683,7 +689,7 @@ def cpu_page():
             out.insert("end", f"\nAverage Waiting Time: {avg_wait:.2f} ms\n")
             out.insert("end", f"Average Turnaround Time: {avg_tat:.2f} ms\n")
             out.insert("end", "\nGantt Chart Time Unit: ms\n")
-            out.insert("end", gantt_chart(gantt, "ms") + "\n")
+            out.insert("end", gantt_chart(gantt) + "\n")
 
     build_process_inputs()
 
